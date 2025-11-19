@@ -1,0 +1,6 @@
+%dw 2.0
+
+type auto_9ea0b02b_89f7_4696_8bd4_a74fa04c22db_Output_Variables_orderItemsDetails = {|
+  "order item details": Array<{|    productId: String,     quantity: Number {"typeId": "int"},     unitPrice: Number {"typeId": "double"}  |}>
+|}
+

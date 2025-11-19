@@ -1,0 +1,34 @@
+[
+  {
+    "orderId": "ORD-001",
+    "customerId": "CUST-123",
+    "orderDate": "2024-01-15T10:30:00Z",
+    "status": "PENDING",
+    "totalAmount": 99.99,
+    "currency": "USD",
+    "items": [
+      {
+        "productId": "PROD-001",
+        "quantity": 1,
+        "unitPrice": 99.99
+      }
+    ],
+    "correlationId": "CORR-001"
+  },
+  {
+    "orderId": "ORD-002",
+    "customerId": "CUST-124",
+    "orderDate": "2024-01-15T10:35:00Z",
+    "status": "PENDING",
+    "totalAmount": 88.99,
+    "currency": "USD",
+    "items": [
+      {
+        "productId": "PROD-002",
+        "quantity": 1,
+        "unitPrice": 88.99
+      }
+    ],
+    "correlationId": "CORR-002"
+  }
+]

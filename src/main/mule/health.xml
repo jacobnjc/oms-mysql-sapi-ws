@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+<flow name="healthCheck" doc:id="a5c398ad-2d0f-478f-a5aa-70549f7936fd" >
+		<http:listener doc:name="Listener" doc:id="6f222035-3720-4884-8ea7-7319500b9e44" config-ref="HttpsListenerConfig" path="/health"/>
+		<set-payload value="Health Status: SSL Site Running" doc:name="Health Status" doc:id="732e8d11-4a96-4fab-8f1e-0dd536d3e200" />
+	</flow>	
+</mule>

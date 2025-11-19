@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="get-orders-flow" doc:id="b9de6705-0e52-4aca-afe9-3c4c03e351cf" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="8b62ff27-486d-4383-a66a-dad738d774c5" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]'/>
+		<ee:transform doc:name="Create Dynamic Query" doc:id="1f7040df-c86a-4d4b-b3ee-a7c74c567c90" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="query" ><![CDATA[%dw 2.0
+output application/json
+var customerId = attributes.queryParams.customerId default null
+var baseQuery = "SELECT o.orderId, o.customerId,o.orderDate, o.status,o.totalAmount,o.currency, i.productId, i.quantity, i.unitPrice FROM Orders o LEFT JOIN OrderItems i ON o.orderId = i.orderId "
+---
+
+if (customerId != null and customerId != "") 
+    baseQuery ++ " WHERE customerId = :customerId " ++ "ORDER BY o.orderId, i.id ;"
+else
+ 
+    baseQuery ++ "ORDER BY o.orderId, i.id;"
+    ]]></ee:set-variable>
+				<ee:set-variable variableName="parameters" ><![CDATA[%dw 2.0
+output application/json
+var customerId = attributes.queryParams.customerId default null
+
+---
+if (customerId != null and customerId != "") 
+ 	customerId
+else
+	Null]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:select doc:name="getAllOrders" doc:id="9ab70dcc-5cbb-4909-9deb-900ffd6051fe" config-ref="SQLite_Database_Config">
+			<db:sql><![CDATA[#[vars.query]]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"customerId": vars.parameters
+	
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="JAVA-to-JSON" doc:id="77e7d09f-d074-4e5d-b6f5-dcadadc20fd2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var groupedOrders = 
+    payload 
+    groupBy (item) -> item.OrderID
+---
+groupedOrders mapObject ((orderItems, orderId) -> {
+    orderId: orderId,
+    customerId: orderItems[0].CustomerId,
+    orderDate: orderItems[0].orderDate,
+    status: orderItems[0].status,
+    totalAmount: orderItems[0].totalAmount as Number,
+    currency: orderItems[0].currency,
+    items: orderItems map (i) -> {
+        productId: i.productID,
+        quantity: i.quantity as Number,
+        unitPrice: i.unitPrice as Number
+    },
+    }) ]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="5af23f59-7c3b-4996-8948-84fba4f1c749" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]'/>
+	</flow>
+	<sub-flow name="next-ordID-subflow" doc:id="9ea0b02b-89f7-4696-8bd4-a74fa04c22db" >
+		<db:select doc:name="Find Last OrdID" doc:id="47d94182-f3a3-4b82-9302-14e1e442aa9f" config-ref="SQLite_Database_Config">
+			<db:sql ><![CDATA[SELECT MAX(CAST(SUBSTRING(orderId, 5) AS INT)) AS lastNumericId FROM Orders;
+]]></db:sql>
+		</db:select>
+		<set-variable value='#[%dw 2.0&#10;output application/json&#10;var lastId = payload[0].lastNumericId as Number&#10;var nextIdNum = lastId + 1&#10;var nextIdFormatted = "ORD-" ++ (nextIdNum as String {format: "000"})&#10;---&#10;{&#10;  nextOrderId: nextIdFormatted&#10;}]' doc:name="newID" doc:id="d558811e-e80d-4759-a65e-34fbbb8472a2" variableName="newID"/>
+	</sub-flow>
+	<sub-flow name="insert-items-subflow" doc:id="60abb045-1612-49ec-853b-1bb45572ec06">
+		<ee:transform doc:name="Add newOrderId to items" doc:id="b6bbf73c-b6ee-48cc-98a1-20c24ba3573e">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+
+var orderId = vars.newID.nextOrderId
+---
+vars.orderItemDetails map (item) -> item ++ { orderId: orderId }]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<db:bulk-insert doc:name="Bulk insert items" doc:id="93205cf0-e551-4137-b71e-9c2103a4f251" config-ref="SQLite_Database_Config">
+			<db:sql><![CDATA[INSERT INTO OrderItems (orderId, productId, quantity, unitPrice)
+VALUES (:orderId, :productId, :quantity, :unitPrice)]]></db:sql>
+		</db:bulk-insert>
+		<set-payload value="Order Created Successfully !!" doc:name="Set Payload" doc:id="a3ac05c7-4a10-4969-8eb1-a0b2906c87f0" />
+		<logger level="DEBUG" doc:name="End Logger" doc:id="2a925c8a-c843-4ccb-b4ad-adf72a2e2711" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</sub-flow>
+	<flow name="post-orders-flow" doc:id="755c650f-0d4d-497c-9209-e3deb3b8c894" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="06087980-5572-44ae-8ecd-699d08d8841c" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;	&#10;&#10;}]' />
+		<ee:transform doc:name="Transform Message" doc:id="e3c2044f-ec69-4a6e-8143-49bfc1b9497e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="orderDetails" ><![CDATA[%dw 2.0
+output application/json
+var orderDetails = {
+    customerId: payload.customerId,
+    orderDate: payload.orderDate,
+    status: payload.status,
+    totalAmount: payload.totalAmount,
+    currency: payload.currency 
+    
+    }
+---
+{
+	"orderDetails": orderDetails 
+}]]></ee:set-variable>
+				<ee:set-variable variableName="orderItemDetails" ><![CDATA[%dw 2.0
+output application/json
+var orderItemDetails = payload.items map (item) -> {
+    productId: item.productId,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice 
+    }
+---
+orderItemDetails]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="next-ordID-subflow" doc:id="cd5c57b1-cf9a-41c5-8969-66d92f23c159" name="next-ordID-subflow"/>
+		<db:insert doc:name="Insert Order" doc:id="11ac6a5a-91d2-438c-b991-aec069846f76" config-ref="SQLite_Database_Config" autoGenerateKeys="true">
+			<db:sql ><![CDATA[INSERT INTO Orders (orderId, customerId, orderDate, status, totalAmount, currency)
+VALUES (:orderId, :customerId, :orderDate, :status, :totalAmount, :currency)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"orderId" : vars.newID.nextOrderId,
+	"customerId": vars.orderDetails."orderDetails".customerId , 
+	"orderDate": vars.orderDetails."orderDetails".orderDate,
+	"status": vars.orderDetails."orderDetails".status,
+	"totalAmount": vars.orderDetails."orderDetails".totalAmount,
+	"currency": vars.orderDetails."orderDetails".currency
+}]]]></db:input-parameters>
+			<db:auto-generated-keys-column-names >
+			</db:auto-generated-keys-column-names>
+		</db:insert>
+		<flow-ref doc:name="insert-items-subflow" doc:id="b068b098-8940-4c6c-967b-2f850c9030f9" name="insert-items-subflow" />
+	</flow>
+	<flow name="get-orders-by-id-flow" doc:id="a4683258-a6e3-4971-9026-ebee31ceeb37" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="b4e44fca-4292-4a7f-bf7d-c7e13df5d78f" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]' />
+		<db:select doc:name="Get order By Id" doc:id="475c360e-4701-47de-a32e-b2ba5201059d" config-ref="SQLite_Database_Config" >
+			<db:sql ><![CDATA[SELECT 
+    o.orderId,
+    o.customerId,
+	o.orderDate,
+    o.status,
+	o.totalAmount,
+	o.currency,
+    i.productId,
+    i.quantity,
+    i.unitPrice
+FROM 
+    Orders o
+LEFT JOIN 
+    OrderItems i ON o.orderId = i.orderId
+WHERE
+	o.orderId = :orderId
+ORDER BY 
+    o.orderId, i.id ;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"orderId": message.attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="JAVA-to-JSON" doc:id="a70b4cf7-7c59-4e3b-9dee-2f984fb6633e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var groupedOrders = 
+    payload 
+    groupBy (item) -> item.OrderID
+---
+groupedOrders mapObject ((orderItems, orderId) -> {
+    orderId: orderId,
+    customerId: orderItems[0].CustomerId,
+    orderDate: orderItems[0].orderDate,
+    status: orderItems[0].status,
+    totalAmount: orderItems[0].totalAmount as Number,
+    currency: orderItems[0].currency,
+    items: orderItems map (i) -> {
+        productId: i.productID,
+        quantity: i.quantity as Number,
+        unitPrice: i.unitPrice as Number
+    },
+    }) ]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="6e4a71dd-3f6e-4333-a604-aa611f06e6d6" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</flow>
+	<flow name="put-orders-by-id-flow" doc:id="a765d12a-f394-4769-9a5d-46b140af5727" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="e8321109-c664-4bce-aca8-45f05368ce46" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]' />
+		<db:update doc:name="Update Status" doc:id="a29947cb-9b36-4946-8074-7d70ec66d8ce" config-ref="SQLite_Database_Config">
+			<db:sql ><![CDATA[UPDATE Orders
+SET status = :status
+WHERE 
+	orderId = :orderId]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"status": payload.status,
+	"orderId": attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform doc:name="Success Message" doc:id="a2b1ff5e-ec72-4d65-a0da-dfbfdcbbc128" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Order Status Updated Successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="79ed32d8-be2b-476f-bf97-00e3f8ec2a9a" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</flow>
+	<!-- [STUDIO:"delete-orders-by-id-flow"]<flow name="delete-orders-by-id-flow" doc:id="9abf98c5-5ae6-44e2-961a-45c7ff5b2e59" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="56bd331e-53e6-41be-8af0-3f918c8546c6" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}&#93;' />
+		<logger level="DEBUG" doc:name="End Logger" doc:id="7368653c-3f49-4cdd-87f4-b59a65fb0ed1" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}&#93;' />
+	</flow> [STUDIO] -->
+	<!-- [STUDIO:"get-payments-flow"]<flow name="get-payments-flow" doc:id="e99bba09-46a6-45a5-a6c5-5ba2e13b698d" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="6ca2e2bb-f203-4e15-ade7-bae4499ae1bc" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}&#93;' />
+		<logger level="DEBUG" doc:name="End Logger" doc:id="e0a81bac-d0bd-4c57-be18-c12b0355a74c" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}&#93;' />
+	</flow> [STUDIO] -->
+	<sub-flow name="next-paymentId-subflow" doc:id="640a804e-5b33-4850-b937-9c73fa36a52f">
+		<db:select doc:name="Find Last PaymentId" doc:id="2563a687-60f7-46b2-833f-b59c39473455" config-ref="SQLite_Database_Config">
+			<db:sql><![CDATA[SELECT MAX(CAST(SUBSTRING(paymentId, 5) AS INT)) AS lastNumericId FROM Payments;
+]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="c6566956-fcf9-4012-b20f-62d54e1f6a39" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var lastId = payload[0].lastNumericId as Number
+var nextIdNum = lastId + 1
+var nextIdFormatted = "PAY-" ++ (nextIdNum as String {format: "000"})
+---
+{
+  nextOrderId: nextIdFormatted
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<flow name="post-payments-flow" doc:id="e8a4d002-2f24-4ccd-9c0b-1c8c270a0b95" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="0b743b85-077c-4067-8770-2a976481c354" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]' />
+		<flow-ref doc:name="next-paymentId-subflow" doc:id="6ca23c83-14bf-4d8c-b523-fa8a22cab88b" name="next-paymentId-subflow" target="newPayId" targetValue="#[payload.nextOrderId]"/>
+		<db:insert doc:name="Insert Order" doc:id="4b555b51-81be-499f-a4d4-2e195c2ced10" config-ref="SQLite_Database_Config" autoGenerateKeys="true" >
+			<db:sql ><![CDATA[INSERT INTO Payments (paymentId, orderId, amount, currency, method, status, createdDate)
+VALUES (:paymentId, :orderId, :amount, :currency, :method, :status, :createdDate)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"paymentId": vars.newPayId,
+	"orderId" : payload.orderId,
+	"amount": payload.amount ,
+	"currency": payload.currency, 
+	"method": payload.method,
+	"status": payload.status,
+	"createdDate": now() as String
+	
+}]]]></db:input-parameters>
+			<db:auto-generated-keys-column-names />
+		</db:insert>
+		<ee:transform doc:name="Success Message" doc:id="173262c5-950d-47d9-b311-e57d189aae2c">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Payment Initiated Successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="824ce5de-3732-4a4b-a691-73855f302168" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</flow>
+	<flow name="get-payments-by-id-flow" doc:id="33df577f-faf2-410e-a608-0a75c3b07637" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="ea124c5e-4342-48bf-a4fa-8d933ec80a5b" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]' />
+		<db:select doc:name="Get Payment By Id" doc:id="2802795d-8a61-4fd4-9315-955e4377c4f8" config-ref="SQLite_Database_Config">
+			<db:sql><![CDATA[SELECT 
+    paymentId,
+    orderId,
+	amount,
+    currency,
+	method,
+	status,
+    createdDate
+FROM 
+    Payments
+
+WHERE
+	paymentId = :paymentId]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"paymentId": attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="JAVA-to-JSON" doc:id="0756e363-c17b-43bd-8949-cefdf7d0c298">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="d42e7610-156b-4a11-897f-f89df7a3b606" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</flow>
+	<flow name="put-payments-by-id-flow" doc:id="c7cbf83e-b9a8-4567-b57b-58e38a07eab0" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="3179a103-fbea-4027-a558-45e927c7845d" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}]' />
+		<db:update doc:name="Update Status" doc:id="144b9468-18da-451b-b34c-5b907f19a3c1" config-ref="SQLite_Database_Config" >
+			<db:sql ><![CDATA[UPDATE Payments
+SET status = :status
+WHERE 
+	paymentId = :paymentId]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"status": payload.status,
+	"paymentId": attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:update>
+		<ee:transform doc:name="Success Message" doc:id="601926f8-1010-49b6-8777-93729ddd3ce1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Payment Status Updated Successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="DEBUG" doc:name="End Logger" doc:id="2135b778-7b03-430a-9d5b-ac0a45b9f3e6" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}]' />
+	</flow>
+	<!-- [STUDIO:"delete-payments-by-id-flow"]<flow name="delete-payments-by-id-flow" doc:id="33d3cbcb-97be-4650-ab22-277c6c24d61a" >
+		<logger level="DEBUG" doc:name="Start Logger" doc:id="23d80d90-8db9-4b0b-b5d8-c402a61a6268" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Starting",&#10;	" Incoming Payload": payload,&#10;&#10;}&#93;' />
+		<logger level="DEBUG" doc:name="End Logger" doc:id="9b0e9fc4-f862-4e63-b8a8-5f233f01b867" message='#[{&#10;	" application " : app.name,&#10;	" Flow name ": flow.name, &#10;	" Action " : "Ending",&#10;	" Outgoing Payload": payload,&#10;}&#93;' />
+	</flow> [STUDIO] -->
+</mule>

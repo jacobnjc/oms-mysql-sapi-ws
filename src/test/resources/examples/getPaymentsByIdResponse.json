@@ -1,0 +1,9 @@
+{
+  "paymentId": "PAY-001",
+  "orderId": "ORD-001",
+  "amount": 99.99,
+  "currency": "USD",
+  "method": "CREDIT_CARD",
+  "status": "PENDING",
+  "createdDate": "2024-01-15T10:30:00Z"
+}

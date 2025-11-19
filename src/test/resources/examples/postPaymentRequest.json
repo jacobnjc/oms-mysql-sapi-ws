@@ -1,0 +1,7 @@
+{
+  "orderId": "ORD-001",
+  "amount": 99.99,
+  "currency": "USD",
+  "method": "CREDIT_CARD",
+  "status": "PENDING"
+}
