@@ -13,18 +13,32 @@ http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/sc
 	<http:listener-config name="HttpsListenerConfig">
 		<http:listener-connection host="0.0.0.0"
 			port="8081" protocol="HTTPS">
-			<tls:context >
-				<tls:key-store type="pkcs12" path="certs/oms-mysql-sapi.p12" keyPassword="centi1234" password="centi1234" />
+			<tls:context>
+				<tls:key-store type="pkcs12"
+					path="certs/oms-mysql-sapi.p12" keyPassword="centi1234"
+					password="centi1234" />
 			</tls:context>
 
 		</http:listener-connection>
 	</http:listener-config>
-	<!--  <api-gateway:autodiscovery apiId="20591876" ignoreBasePath="true" doc:name="API Autodiscovery" doc:id="a774b65d-d34a-4521-8ebc-12177075b2ea" flowRef="oms-mysql-sapi-main" />  -->
-	<db:config name="SQLite_Database_Config" doc:name="Database Config" doc:id="f4cc52fb-03a4-4ba8-8a0f-66901fe22e71" >
-		<db:generic-connection url="${db.url}" driverClassName="${db.driver_class}"/>
+	<!-- <api-gateway:autodiscovery apiId="20591876" ignoreBasePath="true" doc:name="API 
+		Autodiscovery" doc:id="a774b65d-d34a-4521-8ebc-12177075b2ea" flowRef="oms-mysql-sapi-main" 
+		/> -->
+	<db:config name="SQLite_Database_Config"
+		doc:name="Database Config"
+		doc:id="f4cc52fb-03a4-4ba8-8a0f-66901fe22e71">
+		<db:generic-connection url="${db.url}"
+			driverClassName="${db.driver_class}" />
 	</db:config>
-	<configuration-properties doc:name="Configuration properties" doc:id="a32933dd-0bc0-45cc-9558-c214e72c9fd3" file="configurations\configs.yaml" />
-	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="b918852e-0804-4829-8b54-781047694c55" file="configurations\secure.yaml" key="1234" >
-		<secure-properties:encrypt algorithm="Blowfish" />
+	<configuration-properties
+		doc:name="Configuration properties"
+		doc:id="a32933dd-0bc0-45cc-9558-c214e72c9fd3"
+		file="configurations\configs.yaml" />
+	<secure-properties:config
+		name="Secure_Properties_Config" doc:name="Secure Properties Config"
+		doc:id="b918852e-0804-4829-8b54-781047694c55"
+		file="configurations\secure.yaml" key="1234">
+		<secure-properties:encrypt
+			algorithm="Blowfish" />
 	</secure-properties:config>
 </mule>
