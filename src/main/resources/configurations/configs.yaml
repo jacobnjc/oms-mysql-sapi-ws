@@ -1,4 +1,0 @@
-db:
-  driver_class: "org.sqlite.JDBC"
-  url: 'jdbc:sqlite:C:/Users/NJC Labs/AnypointStudio/Centimark_POCs/oms-mysql-sapi/src/main/resources/oms-database.db'
-  test:  'jdbc:sqlite:${mule.home}/apps/${app.name}/oms-database.db'

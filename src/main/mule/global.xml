@@ -12,12 +12,9 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
 http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
 	<http:listener-config name="HttpsListenerConfig">
 		<http:listener-connection host="0.0.0.0"
-			port="8081" protocol="HTTPS">
-			<tls:context>
-				<tls:key-store type="pkcs12"
-					path="certs/oms-mysql-sapi.p12" keyPassword="centi1234"
-					password="centi1234" />
-			</tls:context>
+			port="${secure::https.port}">
+			<!-- <tls:context>
+			</tls:context> -->
 
 		</http:listener-connection>
 	</http:listener-config>
@@ -33,12 +30,13 @@ http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/sc
 	<configuration-properties
 		doc:name="Configuration properties"
 		doc:id="a32933dd-0bc0-45cc-9558-c214e72c9fd3"
-		file="configurations\configs.yaml" />
+		file="configurations/${env}-config.yaml" />
 	<secure-properties:config
 		name="Secure_Properties_Config" doc:name="Secure Properties Config"
 		doc:id="b918852e-0804-4829-8b54-781047694c55"
-		file="configurations\secure.yaml" key="1234">
+		file="configurations/${env}-secure-config.yaml" key="${encrypt.key}">
 		<secure-properties:encrypt
 			algorithm="Blowfish" />
 	</secure-properties:config>
+	<global-property doc:name="Global Property" doc:id="97ee1cca-e0f1-4890-84fb-bc3d8edb3239" name="env" value="dev" />
 </mule>
