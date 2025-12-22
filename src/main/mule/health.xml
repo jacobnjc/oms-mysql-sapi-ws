@@ -1,12 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
-	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
-<flow name="healthCheck" doc:id="a5c398ad-2d0f-478f-a5aa-70549f7936fd" >
-		<http:listener doc:name="Listener" doc:id="6f222035-3720-4884-8ea7-7319500b9e44" config-ref="HttpsListenerConfig" path="/health"/>
-		<set-payload value="Health Status: SSL Site Running" doc:name="Health Status" doc:id="732e8d11-4a96-4fab-8f1e-0dd536d3e200" />
+	<flow name="api-live"
+		doc:id="a5c398ad-2d0f-478f-a5aa-70549f7936fd">
+		<http:listener doc:name="Listener"
+			doc:id="6f222035-3720-4884-8ea7-7319500b9e44"
+			config-ref="HttpsListenerConfig" path="/alive">
+			<http:response statusCode="200" reasonPhrase="Success">
+				<http:body><![CDATA[#["UP"]]]></http:body>
+			</http:response>
+			<http:error-response statusCode="500"
+				reasonPhrase="Error">
+				<http:body><![CDATA[#["Down"]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<set-payload value="UP" doc:name="Liveness Check"
+			doc:id="3f6d91e9-3dd2-4519-a82e-6c0a8eb24f23" />
+	
+</flow>
+	<sub-flow name="check-all-dependencies-are-alive"
+	doc:id="e3dbea05-3646-4784-840e-0cda285de276">
+	<logger level="INFO" doc:name="Readiness Check"
+		doc:id="679d4e46-f734-4da4-be4a-59438db8df59"
+		message="Dependencies Alive" />
+</sub-flow>
+	<flow name="api-ready"
+	doc:id="1216c755-9b56-471d-a887-5eb34f31020b">
+	<http:listener doc:name="Listener"
+		doc:id="00bf86ca-5471-4a09-90cb-2acfcb172ee1"
+		config-ref="HttpsListenerConfig" path="/ready">
+		<http:response statusCode="200" reasonPhrase="Success">
+		</http:response>
+		<http:error-response statusCode="200"
+			reasonPhrase="Error">
+			<http:body><![CDATA[DOWN]]></http:body>
+		</http:error-response>
+	</http:listener>
+	<flow-ref doc:name="Check-All-Dependencies-are-Alive"
+	doc:id="c3cdb6fd-34ae-4b0e-b81e-66e9cdafb6e8"
+	name="check-all-dependencies-are-alive" />
+		<set-payload value="READY"
+	doc:name="Health Status" doc:id="732e8d11-4a96-4fab-8f1e-0dd536d3e200" />
+		<logger level="INFO" doc:name="Logger" doc:id="e9e65ce4-d924-4efc-84d3-1773c0095a99" />
 	</flow>	
+
 </mule>

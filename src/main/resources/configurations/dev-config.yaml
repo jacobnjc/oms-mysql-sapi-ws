@@ -7,5 +7,3 @@ tls.keystore:
     path: "certs/oms-mysql-sapi.p12"
     type: "pkcs12"
     alias: "centi-server"
-    
-    
