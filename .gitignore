@@ -45,4 +45,9 @@ target/
 .mule/
 .DS_Store
 velocity.log
+<<<<<<< HEAD
 .tooling-project
+=======
+exchange_modules/
+.exchange_modules_tmp/
+>>>>>>> 44d6a74e6179498fc11c0fcacced9d9e558117c9
